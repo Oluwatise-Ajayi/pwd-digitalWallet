@@ -13,6 +13,7 @@ import { Roles } from './decorators/roles.decorator'; // Import Roles decorator
 import { RolesGuard } from './guards/roles.guard';
 import { UnauthorizedException } from '@nestjs/common';
 import { User } from './entities/user.entity';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -21,6 +22,7 @@ export class AuthController {
 
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
+  @SkipThrottle({ default: true })
   @ApiResponse({ status: 201, description: 'User registered successfully.' })
   @ApiResponse({
     status: 409,
@@ -33,6 +35,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @SkipThrottle({ default: true })
   @ApiBody({ type: LoginUserDto })
   @ApiResponse({
     status: 200,
