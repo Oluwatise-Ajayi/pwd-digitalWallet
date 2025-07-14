@@ -11,6 +11,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { WalletController } from './modules/wallet/wallet.controller';
 import { WalletService } from './modules/wallet/wallet.service';
 import { SuiIntegrationModule } from './modules/sui-integration/sui-integration.module';
+import { SharedModule } from './modules/shared/shared.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { SuiIntegrationModule } from './modules/sui-integration/sui-integration.
     AuthModule,
     WalletModule,
     SuiIntegrationModule,
+    SharedModule,
   ],
   controllers: [AppController, WalletController],
   providers: [AppService, WalletService],

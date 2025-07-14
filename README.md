@@ -1,6 +1,6 @@
 # Digital Wallet API
 
-A secure and scalable digital wallet API built with NestJS, featuring user authentication, JWT-based authorization, and comprehensive error handling.
+A secure and scalable digital wallet API built with NestJS, featuring user authentication, JWT-based authorization, Sui blockchain integration, and comprehensive error handling.
 
 ## Features
 
@@ -11,6 +11,8 @@ A secure and scalable digital wallet API built with NestJS, featuring user authe
 - 📚 **API Documentation** - Swagger/OpenAPI documentation
 - 🏗️ **TypeScript** - Full type safety and modern development
 - 🧪 **Testing Ready** - Jest testing framework configured
+- 🪙 **Sui Blockchain Integration** - SUI address/key management, SUI transfers, and on-chain/off-chain transaction logging
+- 🔑 **Encrypted Private Keys** - User SUI private keys are encrypted at rest
 
 ## Tech Stack
 
@@ -21,75 +23,83 @@ A secure and scalable digital wallet API built with NestJS, featuring user authe
 - **Logging**: Pino with structured logging
 - **Documentation**: Swagger/OpenAPI
 - **Rate Limiting**: NestJS Throttler
-- **Validation**: class-validator
+- **Validation**: class-validator, DTOs for all endpoints
+- **Blockchain**: Sui blockchain integration via @mysten/sui.js
 
 ## Project Structure
 
 ```
 src/
-├── app.controller.ts          # Main application controller
-├── app.module.ts             # Root application module
-├── app.service.ts            # Application service
-├── main.ts                   # Application entry point
+├── app.controller.ts
+├── app.module.ts
+├── app.service.ts
+├── main.ts
 ├── common/
 │   └── filters/
-│       └── all-exceptions.filter.ts  # Global exception handler
+│       └── all-exceptions.filter.ts
 ├── config/
-│   ├── database.config.ts    # Database configuration
-│   └── jwt.config.ts         # JWT configuration
-└── modules/
-    └── auth/
-        ├── auth.controller.ts # Authentication endpoints
-        ├── auth.module.ts     # Auth module
-        ├── auth.service.ts    # Auth business logic
-        ├── decorators/
-        │   └── roles.decorator.ts     # Role decorators
-        ├── dtos/
-        │   ├── jwt-payload.dto.ts     # JWT payload type
-        │   ├── login-response.dto.ts  # Login response
-        │   ├── login.dto.ts           # Login request
-        │   └── register.dto.ts        # Registration request
-        ├── entities/
-        │   └── user.entity.ts         # User entity
-        ├── guards/
-        │   └── roles.guard.ts         # Role-based access control
-        └── jwt.strategy.ts            # JWT strategy
+│   ├── database.config.ts
+│   └── jwt.config.ts
+├── modules/
+│   ├── auth/
+│   │   ├── auth.controller.ts
+│   │   ├── auth.module.ts
+│   │   ├── auth.service.ts
+│   │   ├── decorators/
+│   │   ├── dtos/
+│   │   ├── entities/
+│   │   ├── guards/
+│   │   └── jwt.strategy.ts
+│   ├── wallet/
+│   │   ├── wallet.controller.ts
+│   │   ├── wallet.module.ts
+│   │   ├── wallet.service.ts
+│   │   ├── dtos/
+│   │   │   ├── create-wallet-address.dto.ts
+│   │   │   ├── wallet-address-response.dto.ts
+│   │   │   └── sui-transfer.dto.ts
+│   │   ├── entities/
+│   │   │   ├── transaction.entity.ts
+│   │   │   └── wallet-address.entity.ts
+│   ├── sui-integration/
+│   │   ├── sui-integration.module.ts
+│   │   └── sui-integration.service.ts
+│   └── shared/
+│       ├── shared.module.ts
+│       └── utils/
+│           └── encryption.util.ts
+└── test/
 ```
 
-## Getting Started
+## Key Endpoints
 
-### Prerequisites
+### Wallet
+- `GET /wallet/my-wallet-summary` — Get all SUI wallet addresses for the authenticated user, including balances
+- `POST /wallet/generate-address` — Generate a new SUI address for the authenticated user (returns address, nickname, createdAt, etc.)
+- `POST /wallet/transfer-sui` — Transfer SUI from one of the user's addresses to another SUI address (on-chain)
 
-- Node.js (v16 or higher)
-- npm or yarn
-- PostgreSQL database
+### Auth
+- `POST /auth/register` — User registration
+- `POST /auth/login` — User login
+- `GET /auth/profile` — Get user profile (protected)
 
-### Installation
+## DTOs and Type Safety
+- All endpoints use DTOs (Data Transfer Objects) for input validation and output typing
+- TypeScript types and interfaces are used throughout for maximum safety
+- Example DTOs: `CreateWalletAddressDto`, `WalletAddressResponseDto`, `SuiTransferDto`
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd pwd-wallet
+## SUI/MIST Conversion
+- SUI amounts are converted to MIST (1 SUI = 1,000,000,000 MIST) using a type-safe helper
+- All on-chain operations use MIST for precision
+
+## Security
+- User SUI private keys are encrypted at rest using AES-256-CBC
+- Only the authenticated user can access or use their private keys
+- All sensitive operations are protected by JWT and role-based guards
+
+## Environment Variables
+
 ```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set up environment variables:
-```bash
-# Copy the example environment file
-cp .env.example .env
-
-# Edit .env with your configuration
-```
-
-### Environment Variables
-
-Create a `.env` file with the following variables:
-
-```env
 # Database
 DATABASE_HOST=localhost
 DATABASE_PORT=5432
@@ -108,15 +118,12 @@ THROTTLE_LIMIT=10
 # Application
 PORT=3000
 NODE_ENV=development
-```
 
-### Database Setup
-
-1. Create a PostgreSQL database
-2. Update the database configuration in `.env`
-3. Run migrations (when implemented):
-```bash
-npm run migration:run
+# Sui Blockchain
+SUI_NETWORK=devnet # or testnet/mainnet/localnet
+SUI_FULLNODE_URL=https://fullnode.devnet.sui.io:443 # or your custom node
+SUI_FAUCET_URL=https://faucet.devnet.sui.io/gas # for devnet/testnet
+ENCRYPTION_KEY=your_32_char_encryption_key_here
 ```
 
 ## Running the Application
@@ -144,15 +151,9 @@ Once the application is running, you can access the API documentation at:
 
 The documentation includes:
 - Authentication endpoints
+- Wallet endpoints (SUI address management, SUI transfer)
 - Request/response schemas
 - Interactive testing interface
-
-## API Endpoints
-
-### Authentication
-- `POST /auth/register` - User registration
-- `POST /auth/login` - User login
-- `GET /auth/profile` - Get user profile (protected)
 
 ## Testing
 
@@ -171,42 +172,6 @@ npm run test:e2e
 npm run test:cov
 ```
 
-## Development
-
-### Code Quality
-
-The project follows TypeScript and NestJS best practices:
-
-- **Type Safety**: Full TypeScript implementation
-- **Clean Architecture**: Modular design with separation of concerns
-- **Error Handling**: Global exception filter with structured logging
-- **Validation**: Request validation using class-validator
-- **Documentation**: Comprehensive API documentation with Swagger
-
-### Adding New Features
-
-1. Create new modules in `src/modules/`
-2. Follow the existing pattern for controllers, services, and DTOs
-3. Add appropriate tests
-4. Update API documentation
-
-## Security Features
-
-- **JWT Authentication**: Secure token-based authentication
-- **Role-based Access Control**: User roles and permissions
-- **Rate Limiting**: API throttling to prevent abuse
-- **Input Validation**: Request validation and sanitization
-- **Error Handling**: Secure error responses without information leakage
-
-## Logging
-
-The application uses structured logging with Pino:
-
-- **Development**: Pretty-printed logs for easy reading
-- **Production**: JSON structured logs for log aggregation
-- **Levels**: Configurable log levels based on environment
-- **Context**: Request tracking and error context
-
 ## Contributing
 
 1. Fork the repository
@@ -219,10 +184,3 @@ The application uses structured logging with Pino:
 ## License
 
 This project is licensed under the MIT License.
-
-## Support
-
-For questions and support:
-- Check the [NestJS Documentation](https://docs.nestjs.com)
-- Visit the [NestJS Discord](https://discord.gg/G7Qnnhy)
-- Review the API documentation at `/api-docs` when running locally

@@ -7,6 +7,7 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Transaction } from '../../wallet/entities/transaction.entity';
+import { WalletAddress } from '../../wallet/entities/wallet-address.entity';
 
 export enum UserRole {
   USER = 'USER',
@@ -39,4 +40,7 @@ export class User {
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];
+
+  @OneToMany(() => WalletAddress, (walletAddress) => walletAddress.user)
+  walletAddresses: WalletAddress[];
 }

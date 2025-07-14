@@ -1,6 +1,13 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui.js/client';
+import { Keypair } from '@mysten/sui.js/cryptography';
+import { TransactionBlock } from '@mysten/sui.js/transactions';
 
 @Injectable()
 export class SuiIntegrationService implements OnModuleInit {
@@ -18,11 +25,13 @@ export class SuiIntegrationService implements OnModuleInit {
       this.logger.error(
         'SUI_NETWORK or SUI_FULLNODE_URL environment variables are not set!',
       );
-      throw new Error('SUI_NETWORK or SUI_FULLNODE_URL must be set');
+      throw new InternalServerErrorException(
+        'SUI_NETWORK or SUI_FULLNODE_URL must be set',
+      );
     }
     if (!suiFaucetUrl) {
       this.logger.error('SUI_FAUCET_URL environment variable is not set!');
-      throw new Error('SUI_FAUCET_URL must be set');
+      throw new InternalServerErrorException('SUI_FAUCET_URL must be set');
     }
     this.suiFaucetUrl = suiFaucetUrl;
     try {
@@ -37,7 +46,9 @@ export class SuiIntegrationService implements OnModuleInit {
       } else if (suiFullnodeUrl) {
         nodeUrl = suiFullnodeUrl;
       } else {
-        throw new Error('No valid SUI network or fullnode URL provided');
+        throw new InternalServerErrorException(
+          'No valid SUI network or fullnode URL provided',
+        );
       }
       this.suiClient = new SuiClient({ url: nodeUrl });
       this.logger.log(
@@ -48,30 +59,45 @@ export class SuiIntegrationService implements OnModuleInit {
         `Sui Node Health Check: Epoch ${health.epoch}, Protocol Version ${health.protocolVersion}`,
       );
     } catch (error: unknown) {
-      if (error && typeof error === 'object') {
-        const err = error as { message?: string; stack?: string };
-        this.logger.error(
-          'Failed to initialize Sui Client:',
-          err.message ?? '',
-          err.stack ?? '',
-        );
+      let errorMsg = '';
+      let errorStack = '';
+      if (
+        error &&
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        errorMsg = String((error as { message?: string }).message);
+        errorStack =
+          'stack' in error ? String((error as { stack?: string }).stack) : '';
       } else {
-        this.logger.error('Failed to initialize Sui Client:', String(error));
+        errorMsg = String(error);
       }
-      throw error;
+      this.logger.error(
+        'Failed to initialize Sui Client:',
+        errorMsg,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to connect to Sui blockchain.',
+      );
     }
   }
 
   public getClient(): SuiClient {
     if (!this.suiClient) {
-      throw new Error('SuiClient is not initialized.');
+      throw new InternalServerErrorException('SuiClient is not initialized.');
     }
     return this.suiClient;
   }
 
-  async requestSuiFromFaucet(recipientAddress: string): Promise<unknown> {
+  public async requestSuiFromFaucet(
+    recipientAddress: string,
+  ): Promise<unknown> {
     if (!this.suiFaucetUrl) {
-      throw new Error('SUI_FAUCET_URL is not configured.');
+      throw new InternalServerErrorException(
+        'SUI_FAUCET_URL is not configured.',
+      );
     }
     this.logger.log(
       `Requesting SUI from faucet for address: ${recipientAddress}`,
@@ -79,9 +105,7 @@ export class SuiIntegrationService implements OnModuleInit {
     try {
       const response = await fetch(this.suiFaucetUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           FixedAmountRequest: { recipient: recipientAddress },
         }),
@@ -99,7 +123,9 @@ export class SuiIntegrationService implements OnModuleInit {
           errorMsg = (data as Record<string, string>).error;
         }
         this.logger.error(`Faucet request failed: ${JSON.stringify(data)}`);
-        throw new Error(`Faucet request failed: ${errorMsg}`);
+        throw new InternalServerErrorException(
+          `Faucet request failed: ${errorMsg}`,
+        );
       }
       this.logger.log(
         `Faucet response for ${recipientAddress}: ${JSON.stringify(data)}`,
@@ -118,13 +144,81 @@ export class SuiIntegrationService implements OnModuleInit {
         errorMsg = String(error);
       }
       this.logger.error(`Error requesting SUI from faucet: ${errorMsg}`);
-      throw error;
+      throw new InternalServerErrorException(
+        `Failed to request SUI from faucet: ${errorMsg}`,
+      );
     }
   }
 
-  // You will add more methods here for:
-  // - Getting SUI balance
-  // - Querying objects
-  // - Executing transaction blocks
-  // - Subscribing to events
+  public async getSuiBalance(address: string): Promise<string> {
+    try {
+      const coins = await this.suiClient.getBalance({ owner: address });
+      // Return the totalBalance as a string (MIST)
+      return coins.totalBalance?.toString() ?? '0';
+    } catch (error: unknown) {
+      let errorMsg = '';
+      if (
+        error &&
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        errorMsg = String((error as { message?: string }).message);
+      } else {
+        errorMsg = String(error);
+      }
+      this.logger.error(
+        `Failed to get SUI balance for ${address}: ${errorMsg}`,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve balance for address ${address}.`,
+      );
+    }
+  }
+
+  public async transferSuiNative(
+    senderKeypair: Keypair,
+    recipientAddress: string,
+    amountMIST: number,
+  ): Promise<unknown> {
+    const txb = new TransactionBlock();
+    const [coin] = txb.splitCoins(txb.gas, [txb.pure(amountMIST)]);
+    txb.transferObjects([coin], txb.pure(recipientAddress));
+    try {
+      const result = await this.suiClient.signAndExecuteTransactionBlock({
+        signer: senderKeypair,
+        transactionBlock: txb,
+        options: {
+          showEffects: true,
+          showBalanceChanges: true,
+        },
+      });
+      this.logger.log(
+        `SUI native transfer successful. Digest: ${result.digest}`,
+      );
+      return result;
+    } catch (error: unknown) {
+      let errorMsg = '';
+      let errorStack = '';
+      if (
+        error &&
+        typeof error === 'object' &&
+        error !== null &&
+        'message' in error
+      ) {
+        errorMsg = String((error as { message?: string }).message);
+        errorStack =
+          'stack' in error ? String((error as { stack?: string }).stack) : '';
+      } else {
+        errorMsg = String(error);
+      }
+      this.logger.error(
+        `Error during SUI native transfer: ${errorMsg}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        `SUI native transfer failed: ${errorMsg}`,
+      );
+    }
+  }
 }
