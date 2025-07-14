@@ -7,6 +7,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { getTypeOrmModuleOptions } from './config/database.config';
 import { LoggerModule } from 'nestjs-pino';
 import { ThrottlerModule } from '@nestjs/throttler'; // Import Throttler
+import { WalletModule } from './modules/wallet/wallet.module';
+import { WalletController } from './modules/wallet/wallet.controller';
+import { WalletService } from './modules/wallet/wallet.service';
+import { SuiIntegrationModule } from './modules/sui-integration/sui-integration.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -44,8 +49,10 @@ import { ThrottlerModule } from '@nestjs/throttler'; // Import Throttler
       }),
     }),
     AuthModule,
+    WalletModule,
+    SuiIntegrationModule,
   ],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, WalletController],
+  providers: [AppService, WalletService],
 })
 export class AppModule {}

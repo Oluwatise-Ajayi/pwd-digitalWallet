@@ -2,6 +2,7 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { User } from '../modules/auth/entities/user.entity';
+import { Transaction } from '../modules/wallet/entities/transaction.entity';
 import * as dotenv from 'dotenv';
 
 // Configuration for NestJS TypeOrmModule
@@ -14,8 +15,8 @@ export const getTypeOrmModuleOptions = (
   username: configService.get<string>('DATABASE_USERNAME'),
   password: configService.get<string>('DATABASE_PASSWORD'),
   database: configService.get<string>('DATABASE_NAME'),
-  entities: [User],
-  synchronize: configService.get<string>('NODE_ENV') !== 'production', // false in production
+  entities: [User, Transaction],
+  synchronize: false, // Disable auto-synchronization since tables are created manually
   logging: configService.get<string>('NODE_ENV') === 'development',
   migrationsTableName: 'migrations_history',
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
@@ -31,7 +32,7 @@ export const AppDataSource = new DataSource({
   username: process.env.DATABASE_USERNAME,
   password: process.env.DATABASE_PASSWORD,
   database: process.env.DATABASE_NAME,
-  entities: [User],
+  entities: [User, Transaction],
   migrationsTableName: 'migrations_history',
   migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
 });
